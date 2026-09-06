@@ -14,7 +14,7 @@ WebAssembly.
 
 [![Live Demo](.github/live_demo_badge.svg)](https://madureira.github.io/snake-asm)
 
-## Requirements
+## 🧰 Requirements
 
 - [NASM](https://www.nasm.us/)
   - macOS: `brew install nasm`
@@ -28,7 +28,7 @@ WebAssembly.
   - Linux: `sudo apt install python3` / `sudo dnf install python3` / `sudo pacman -S python`
   - Windows: `winget install Python.Python.3` / `choco install python` / `scoop install python`
 
-## Building
+## 🔨 Building
 
 ```bash
 ./build.sh      # Linux/macOS
@@ -41,7 +41,7 @@ This assembles `asm/snake.asm` into `build/snake.com`, copies it to
 
 Run this again any time you change `asm/snake.asm` or `dos/dosbox.conf`.
 
-## Running
+## 🌐 Running
 
 ```bash
 ./server.sh     # Linux/macOS
@@ -50,15 +50,15 @@ server.bat      # Windows
 
 Then open <http://localhost:8080> in a browser.
 
-## Starting the Game
+## 💾 Starting the Game
 
-💾 DOS boots straight to the `C:\>` prompt - type the following to start the game:
+DOS boots straight to the `C:\>` prompt - type the following to start the game:
 
 ```bash
 SNAKE
 ```
 
-## Controls
+## 🎮 Controls
 
 | Key        | Action            |
 | ---------- | ----------------- |
