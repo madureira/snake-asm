@@ -16,17 +16,10 @@ WebAssembly.
 
 ## 🧰 Requirements
 
-- [NASM](https://www.nasm.us/)
-  - macOS: `brew install nasm`
-  - Linux: `sudo apt install nasm` / `sudo dnf install nasm` / `sudo pacman -S nasm`
-  - Windows: `choco install nasm` / `scoop install nasm` / `winget install NASM.NASM`
-- `zip` - Linux/macOS only, already available or installable via the same
-  package managers as NASM. Windows uses PowerShell's `Compress-Archive`
-  instead, which ships with the OS.
-- Python (3.x) - used by `server.sh` / `server.bat` to serve files.
-  - macOS: `brew install python`
-  - Linux: `sudo apt install python3` / `sudo dnf install python3` / `sudo pacman -S python`
-  - Windows: `winget install Python.Python.3` / `choco install python` / `scoop install python`
+- [NASM](https://www.nasm.us/) - assembles `asm/snake.asm` into the `.COM` binary.
+- `zip` - packages the DOS files into the `.jsdos` bundle (Linux/macOS only;
+  Windows uses PowerShell's `Compress-Archive` instead).
+- Python (3.x) - serves `web/` over HTTP via `server.sh` / `server.bat`.
 
 ## 🔨 Building
 
@@ -60,10 +53,42 @@ SNAKE
 
 ## 🎮 Controls
 
-| Key        | Action            |
-| ---------- | ----------------- |
-| Up arrow   | Move up           |
-| Down arrow | Move down         |
-| Left arrow | Move left         |
-| Right arrow| Move right        |
-| Esc        | Quit back to DOS  |
+| Key             | Action           |
+|-----------------|------------------|
+| `↑` `↓` `←` `→` | Move snake       |
+| `ESC`           | Quit back to DOS |
+
+## 📁 Project Structure
+
+```text
+snake-asm/
+├── .github/workflows/     # CI and GitHub Pages deploy workflows
+├── asm/
+│   └── snake.asm          # Game source code (NASM)
+├── build/
+│   └── snake.com          # Assembled flat binary (generated)
+├── dos/
+│   ├── dosbox.conf        # DOSBox configuration
+│   └── SNAKE.COM          # DOS executable (generated)
+├── web/
+│   ├── index.html         # Loads js-dos and boots the bundle
+│   └── snake.jsdos        # js-dos bundle (generated)
+├── build.sh / build.bat   # Build scripts (Linux/macOS / Windows)
+├── server.sh / server.bat # Local web server scripts (Linux/macOS / Windows)
+├── LICENSE
+└── README.md
+```
+
+## 🛠️ Technical Details
+
+|              |                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------- |
+| Language     | x86 16-bit Assembly (Real Mode)                                                    |
+| Assembler    | NASM                                                                               |
+| Platform     | MS-DOS, run in-browser via js-dos (DOSBox-X / WebAssembly)                         |
+| File Format  | COM executable (flat binary, org 0x100)                                            |
+| Binary size  | 182 bytes                                                                          |
+| Video mode   | VGA Mode 13h (320x200, 256 colors), direct framebuffer writes at 0xA000            |
+| Input        | BIOS keyboard interrupt (int 0x16), blocking - movement is turn-based per keypress |
+| Dependencies | none - only BIOS/DOS interrupts (int 0x10, int 0x16, int 0x21)                     |
+| Exit         | restores text mode and returns to DOS via int 0x21, ah=0x4C                        |
