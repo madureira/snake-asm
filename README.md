@@ -1,6 +1,8 @@
-# Snake Assembly
+# Snake Assembly 🐍
 
 [![CI](https://github.com/madureira/snake-asm/actions/workflows/ci.yml/badge.svg)](https://github.com/madureira/snake-asm/actions/workflows/ci.yml)
+![Assembly](https://img.shields.io/badge/assembly-x86--16--bit%20(NASM)-blue)
+![Platform](https://img.shields.io/badge/platform-MS--DOS%20%7C%20WebAssembly-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 A Snake game written in x86 16-bit assembly (NASM), running as a real MS-DOS
@@ -11,21 +13,6 @@ It's played directly in the browser via
 WebAssembly.
 
 [![Live Demo](.github/live_demo_badge.svg)](https://madureira.github.io/snake-asm)
-
-## Project layout
-
-- `asm/snake.asm` - the game source, assembled into a flat `.COM` binary.
-- `dos/dosbox.conf` - DOSBox configuration used both for local testing and for
-  the bundle shipped to the browser.
-- `web/index.html` - loads js-dos and boots the DOS bundle.
-- `build.sh` / `build.bat` - assembles the game and produces the browser bundle
-  (Linux/macOS and Windows, respectively).
-- `server.sh` / `server.bat` - serves `web/` over HTTP so the browser can load
-  the bundle (Linux/macOS and Windows, respectively).
-
-Everything works on Linux, macOS, and Windows, on both x86-64 and arm64 - the
-scripts only shell out to standard, cross-architecture tools (NASM, zip,
-Python, PowerShell), and check that each one is installed before using it.
 
 ## Requirements
 
@@ -40,9 +27,6 @@ Python, PowerShell), and check that each one is installed before using it.
   - macOS: `brew install python`
   - Linux: `sudo apt install python3` / `sudo dnf install python3` / `sudo pacman -S python`
   - Windows: `winget install Python.Python.3` / `choco install python` / `scoop install python`
-
-If a required tool is missing, the build/server scripts detect it and print
-install instructions instead of failing with a cryptic error.
 
 ## Building
 
@@ -73,5 +57,10 @@ SNAKE
 
 ## Controls
 
-- Arrow keys — move
-- Esc — quit back to DOS
+| Key        | Action            |
+| ---------- | ----------------- |
+| Up arrow   | Move up           |
+| Down arrow | Move down         |
+| Left arrow | Move left         |
+| Right arrow| Move right        |
+| Esc        | Quit back to DOS  |
