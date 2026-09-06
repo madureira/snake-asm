@@ -20,10 +20,10 @@ WebAssembly.
   - macOS: `brew install nasm`
   - Linux: `sudo apt install nasm` / `sudo dnf install nasm` / `sudo pacman -S nasm`
   - Windows: `choco install nasm` / `scoop install nasm` / `winget install NASM.NASM`
-- `zip` — Linux/macOS only, already available or installable via the same
+- `zip` - Linux/macOS only, already available or installable via the same
   package managers as NASM. Windows uses PowerShell's `Compress-Archive`
   instead, which ships with the OS.
-- Python (3.x) — used by `server.sh` / `server.bat` to serve files.
+- Python (3.x) - used by `server.sh` / `server.bat` to serve files.
   - macOS: `brew install python`
   - Linux: `sudo apt install python3` / `sudo dnf install python3` / `sudo pacman -S python`
   - Windows: `winget install Python.Python.3` / `choco install python` / `scoop install python`
@@ -37,7 +37,7 @@ build.bat       # Windows
 
 This assembles `asm/snake.asm` into `build/snake.com`, copies it to
 `dos/SNAKE.COM`, and packages `dos/SNAKE.COM` + `dos/dosbox.conf` into
-`web/snake.jsdos` — the bundle js-dos loads in the browser.
+`web/snake.jsdos` - the bundle js-dos loads in the browser.
 
 Run this again any time you change `asm/snake.asm` or `dos/dosbox.conf`.
 
@@ -48,8 +48,11 @@ Run this again any time you change `asm/snake.asm` or `dos/dosbox.conf`.
 server.bat      # Windows
 ```
 
-Then open <http://localhost:8080> in a browser. DOS boots straight to the
-`C:\>` prompt — type the following to start the game:
+Then open <http://localhost:8080> in a browser.
+
+## Starting the Game
+
+💾 DOS boots straight to the `C:\>` prompt - type the following to start the game:
 
 ```bash
 SNAKE
