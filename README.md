@@ -1,11 +1,16 @@
 # Snake Assembly
 
+[![CI](https://github.com/madureira/snake-asm/actions/workflows/ci.yml/badge.svg)](https://github.com/madureira/snake-asm/actions/workflows/ci.yml)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 A Snake game written in x86 16-bit assembly (NASM), running as a real MS-DOS
 `.COM` executable.
 
 It's played directly in the browser via
 [js-dos](https://js-dos.com), which emulates DOS through DOSBox-X compiled to
 WebAssembly.
+
+[![Live Demo](.github/live_demo_badge.svg)](https://madureira.github.io/snake-asm)
 
 ## Project layout
 
