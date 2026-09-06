@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake x86 DOS</title>
+    <!--
+        Pinned to 8.3.20 instead of "latest" (8.4.x):
+        the WebGL rendering pipeline introduced in 8.4.0 has a known
+        race condition when the emulated program changes video mode,
+        causing intermittent crashes.
+    -->
+    <link rel="stylesheet" href="https://v8.js-dos.com/8.xx/8.3.20/js-dos.css">
+    <script src="https://v8.js-dos.com/8.xx/8.3.20/js-dos.js"></script>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #111;
+        }
+
+        #dos {
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+<div id="dos"></div>
+<script>
+    // Cache-busting query string: js-dos persists a loaded bundle's
+    // filesystem in the browser (IndexedDB/OPFS) keyed by this URL, so a
+    // stale bundle can stick around even after a hard refresh.
+    Dos(document.getElementById("dos"), {
+        url: "./snake.jsdos?v=" + Date.now()
+    });
+</script>
+</body>
+</html>
