@@ -40,20 +40,23 @@ main_loop:
     cmp ah, KEY_UP
     jne .skip_up
     sub word [pos_y], STEP          ; move up: decrease Y
+
 .skip_up:
     cmp ah, KEY_DOWN
     jne .skip_down
     add word [pos_y], STEP          ; move down: increase Y
+
 .skip_down:
     cmp ah, KEY_LEFT
     jne .skip_left
     sub word [pos_x], STEP          ; move left: decrease X
+
 .skip_left:
     cmp ah, KEY_RIGHT
     jne .skip_right
     add word [pos_x], STEP          ; move right: increase X
-.skip_right:
 
+.skip_right:
     call clamp_position             ; keep the box within the screen
     jmp main_loop
 
@@ -79,9 +82,11 @@ draw_box:
     mov di, ax                      ; di = offset of the box's top-left pixel
 
     mov cx, SQUARE_SIZE             ; row counter
+
 .row:
     push cx
     mov cx, SQUARE_SIZE             ; pixel counter for this row
+
 .col:
     mov [es:di], bl                 ; write one pixel
     inc di
@@ -103,23 +108,25 @@ clamp_position:
     cmp word [pos_x], 0
     jge .x_not_neg
     mov word [pos_x], 0             ; clamp to left edge
+
 .x_not_neg:
     mov ax, SCREEN_W - SQUARE_SIZE
     cmp word [pos_x], ax
     jle .x_not_over
     mov word [pos_x], ax            ; clamp to right edge
-.x_not_over:
 
+.x_not_over:
     cmp word [pos_y], 0
     jge .y_not_neg
     mov word [pos_y], 0             ; clamp to top edge
+
 .y_not_neg:
     mov ax, SCREEN_H - SQUARE_SIZE
     cmp word [pos_y], ax
     jle .y_not_over
     mov word [pos_y], ax            ; clamp to bottom edge
-.y_not_over:
 
+.y_not_over:
     pop ax
     ret
 

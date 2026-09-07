@@ -35,7 +35,11 @@
     // filesystem in the browser (IndexedDB/OPFS) keyed by this URL, so a
     // stale bundle can stick around even after a hard refresh.
     Dos(document.getElementById("dos"), {
-        url: "./snake.jsdos?v=" + Date.now()
+        url: "./snake.jsdos?v=" + Date.now(),
+        autoStart: true,
+        kiosk: true,
+        renderAspect: "4/3",
+        imageRendering: "pixelated"
     });
 </script>
 </body>
