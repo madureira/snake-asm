@@ -59,6 +59,16 @@ KEY_A           equ 0x1E
 KEY_D           equ 0x20
 
 ; ============================================================================
+; Movement directions
+; ============================================================================
+
+DIR_NONE        equ 0
+DIR_UP          equ 1
+DIR_DOWN        equ 2
+DIR_LEFT        equ 3
+DIR_RIGHT       equ 4
+
+; ============================================================================
 ; Start
 ; ============================================================================
 
@@ -82,9 +92,9 @@ start:
 main_loop:
     ; Draw snake box at current position
     mov bl, SNAKE_COLOR
-    call draw_box                   ; draw box at current position
+    call draw_box
 
-    ; Wait for a key
+    ; Wait for key input
     mov ah, 0x00                    ; BIOS keyboard: block until key pressed
     int 0x16                        ; AH=scan code, AL=ASCII (0 if extended)
 
@@ -92,24 +102,67 @@ main_loop:
     cmp ah, KEY_ESC
     je finish
 
-    ; Erase current position
+    ; ------------------------------------------------------------------------
+    ; Convert scan code into direction.
+    ;
+    ; Input:
+    ;   AH = scan code
+    ;
+    ; Output:
+    ;   AL = direction
+    ; ------------------------------------------------------------------------
+
+    call get_key_direction
+
+    ; Ignore unmapped keys
+    cmp al, DIR_NONE
+    je main_loop
+
+
+    ; ------------------------------------------------------------------------
+    ; A valid movement key was pressed
+    ; ------------------------------------------------------------------------
+
+    ; Erase the current square
     mov bl, BG_COLOR
     call draw_box
 
-    ; Convert keyboard scan code into movement delta.
-    call get_key_delta
+    ; ------------------------------------------------------------------------
+    ; Check the requestd direction
+    ; ------------------------------------------------------------------------
 
-    ; If the key is not mapped, the current position remains unchanged
-    js .no_movement
+    cmp al, DIR_UP
+    je .move_up
 
-    ; Apply movement
-    add word [pos_x], ax
-    add word [pos_y], bx
+    cmp al, DIR_DOWN
+    je .move_down
 
-    ; Keep the snake inside the play area
+    cmp al, DIR_LEFT
+    je .move_left
+
+    ; If it is not UP, DOWN or LEFT,
+    ; it must be RIGHT
+    add word [pos_x], STEP
+    jmp .movement_done
+
+.move_up:
+    sub word [pos_y], STEP
+    jmp .movement_done
+
+.move_down:
+    add word [pos_y], STEP
+    jmp .movement_done
+
+.move_left:
+    sub word [pos_x], STEP
+
+.movement_done:
+    ; Keep the square inside the screen
     call clamp_position
 
-.no_movement:
+    ; Draw the square at the new position
+    mov bl, SNAKE_COLOR
+    call draw_box
     jmp main_loop
 
 finish:
@@ -122,160 +175,107 @@ finish:
     int 0x21
 
 ; ============================================================================
-; Keyboard -> movement delta table
+; get_key_direction
 ;
-; Each entry has the following format:
-;
-;   db scan_code
-;   dw delta_x
-;   dw delta_y
-;
-; Entry size = 5 bytes.
-; ============================================================================
-
-key_delta_table:
-    ; Up
-    db KEY_UP
-    dw 0
-    dw -STEP
-
-    ; W
-    db KEY_W
-    dw 0
-    dw -STEP
-
-    ; Down
-    db KEY_DOWN
-    dw 0
-    dw STEP
-
-    ; S
-    db KEY_S
-    dw 0
-    dw STEP
-
-    ; Left
-    db KEY_LEFT
-    dw -STEP
-    dw 0
-
-    ; A
-    db KEY_A
-    dw -STEP
-    dw 0
-
-    ; Right
-    db KEY_RIGHT
-    dw STEP
-    dw 0
-
-    ; D
-    db KEY_D
-    dw STEP
-    dw 0
-
-    ; End of table
-    db 0x00
-
-; ============================================================================
-; get_key_delta
-;
-; Converts a keyboard scan code into a movement delta.
+; Converts a keyboard scan code into a movement direction using direct
+; indexed memory access.
 ;
 ; Input:
 ;   AH = keyboard scan code
 ;
 ; Output:
-;   CF = 0 -> key found
-;       AX = delta X
-;       BX = delta Y
+;   AL = direction
 ;
-;   CF = 1 -> key not found
-;       AX and BX are zero
+; Example:
+;   AH = 0x11 (W)
+;   AL = DIR_UP
 ;
-; Preserves:
-;   DX
-;   SI
+;   AH = 0x48 (Up Arrow)
+;   AL = DIR_UP
+;
+;   AH = 0x30 (unmapped)
+;   AL = DIR_NONE
 ; ============================================================================
 
-get_key_delta:
-    ; Save registers that we use
-    push dx
-    push si
+get_key_direction:
+    push bx
 
     ; ------------------------------------------------------------------------
-    ; Save scan code in DH.
+    ; Move scan code from AH to BL.
     ;
-    ; We use DH instead of DL so that the low byte of DX is never
-    ; accidentally confused with the return value in AX.
+    ; BX will be used as the table index.
     ; ------------------------------------------------------------------------
 
-    mov dh, ah
-
-    ; SI points to the beginning of the table
-    mov si, key_delta_table
-
-.loop:
-    ; Check for end of table
-    cmp byte [si], 0x00
-    je .not_found
-
-    ; Compare scan code
-    cmp byte [si], dh
-    je .found
+    mov bl, ah
+    xor bh, bh
 
     ; ------------------------------------------------------------------------
-    ; Each table entry is:
+    ; Direct indexed lookup:
     ;
-    ;   1 byte  scan code
-    ;   2 bytes delta X
-    ;   2 bytes delta Y
-    ;
-    ; Total = 5 bytes.
+    ;   AL = key_direction_table[BX]
     ; ------------------------------------------------------------------------
 
-    add si, 5
-    jmp .loop
-
-.found:
-
-    ; ------------------------------------------------------------------------
-    ; Entry layout:
-    ;
-    ;   [SI + 0] = scan code
-    ;   [SI + 1] = delta X
-    ;   [SI + 3] = delta Y
-    ; ------------------------------------------------------------------------
-
-    mov ax, [si + 1]
-    mov bx, [si + 3]
-
-    ; Key found
-    clc
-
-    pop si
-    pop dx
-
+    mov al, [key_direction_table + bx]
+    pop bx
     ret
 
-.not_found:
+; ============================================================================
+; Keyboard lookup table
+;
+; Exactly 128 bytes.
+;
+; Index = keyboard scan code
+; Value = movement direction
+;
+; Every entry defaults to DIR_NONE.
+; Only W/A/S/D and arrow keys are mapped.
+; ============================================================================
 
-    ; ------------------------------------------------------------------------
-    ; Key not mapped.
-    ;
-    ; Return zero movement and set CF.
-    ; ------------------------------------------------------------------------
+key_direction_table:
+    ; Fill indexes 00h-10h with DIR_NONE
+    times KEY_W db DIR_NONE
 
-    xor ax, ax
-    xor bx, bx
+    ; Index 11h (W) -> DIR_UP
+    db DIR_UP
 
-    ; Key not found
-    stc
+    ; Fill indexes 12h-1Dh with DIR_NONE
+    times KEY_A - KEY_W - 1 db DIR_NONE
 
-    pop si
-    pop dx
+    ; Index 1Eh (A) -> DIR_LEFT
+    db DIR_LEFT
 
-    ret
+    ; Index 1Fh (S) -> DIR_DOWN
+    db DIR_DOWN
+
+    ; Index 20h (D) -> DIR_RIGHT
+    db DIR_RIGHT
+
+    ; Fill indexes 21h-47h with DIR_NONE
+    times KEY_UP - KEY_D - 1 db DIR_NONE
+
+    ; Index 48h (UP arrow) -> DIR_UP
+    db DIR_UP
+
+    ; Fill indexes 49h-4Ah with DIR_NONE
+    times KEY_LEFT - KEY_UP - 1 db DIR_NONE
+
+    ; Index 4Bh (LEFT arrow) -> DIR_LEFT
+    db DIR_LEFT
+
+    ; Index 4Ch -> DIR_NONE
+    db DIR_NONE
+
+    ; Index 4Dh (RIGHT arrow) -> DIR_RIGHT
+    db DIR_RIGHT
+
+    ; Fill indexes 4Eh-4Fh with DIR_NONE
+    times KEY_DOWN - KEY_RIGHT - 1 db DIR_NONE
+
+    ; Index 50h (DOWN arrow) -> DIR_DOWN
+    db DIR_DOWN
+
+    ; Fill indexes 51h-7Fh with DIR_NONE
+    times 128 - KEY_DOWN - 1 db DIR_NONE
 
 ; ============================================================================
 ; draw_box
