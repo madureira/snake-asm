@@ -23,7 +23,7 @@ VGA_MODE_13H    equ 0x0013          ; 320x200, 256 colors
 VIDEO_SEGMENT   equ 0xA000          ; VGA framebuffer segment
 
 ; ============================================================================
-; Screen configuration
+; Game configuration
 ; ============================================================================
 
 SCREEN_W        equ 320             ; screen width, in pixels
@@ -31,6 +31,7 @@ SCREEN_H        equ 200             ; screen height, in pixels
 SQUARE_SIZE     equ 8               ; snake segment size, in pixels
 STEP            equ SQUARE_SIZE     ; movement step per keypress, in pixels
 THICKNESS       equ 8               ; border wall thickness, in pixels
+TICK_INTERVAL   equ 3
 
 ; ============================================================================
 ; VGA colors (default palette)
@@ -85,6 +86,20 @@ start:
     mov ax, VIDEO_SEGMENT
     mov es, ax
 
+    ; Initialize game timer
+    mov ax, 0x0040
+    mov es, ax
+    mov ax, [es:0x006C]
+
+    push cs
+    pop ds
+
+    mov [last_tick], ax
+
+    ; Restore VGA video memory segment
+    mov ax, VIDEO_SEGMENT
+    mov es, ax
+
     ; Draw border
     mov bl, BORDER_COLOR
     call draw_border
@@ -98,9 +113,16 @@ start:
 ; ============================================================================
 
 main_loop:
-    ; Wait for key input
-    mov ah, 0x00                    ; BIOS keyboard: block until key pressed
-    int 0x16                        ; AH=scan code, AL=ASCII (0 if extended)
+    ; Check if a key is available without blocking
+    mov ah, 0x01                    ; BIOS keyboard: check for key
+    int 0x16                        ; ZF=1 if no key is available
+
+    ; No key available -> continue game loop
+    jz .check_tick
+
+    ; Read the available key
+    mov ah, 0x00                    ; BIOS keyboard: read key
+    int 0x16                        ; AH=scan code, AL=ASCII
 
     ; Esc -> exit
     cmp ah, KEY_ESC
@@ -120,30 +142,44 @@ main_loop:
 
     ; Ignore unmapped keys
     cmp al, DIR_NONE
-    je main_loop
+    je .check_tick
 
     ; Ignore values outside the valid direction range
     cmp al, DIR_UP
-    jb main_loop
+    jb .check_tick
 
     cmp al, DIR_RIGHT
-    ja main_loop
+    ja .check_tick
+
+    ; Store the new direction
+    xor ah, ah
+    mov [direction], ax
+
+.check_tick:
+    ; Check if it is time to move
+    call game_tick
+
+    ; No game tick yet
+    cmp al, 0
+    je main_loop
 
     ; Erase current square
     mov bl, BG_COLOR
     call draw_box
 
     ; Move according to the requested direction
-    cmp al, DIR_UP
+    mov ax, [direction]
+
+    cmp ax, DIR_UP
     je .move_up
 
-    cmp al, DIR_DOWN
+    cmp ax, DIR_DOWN
     je .move_down
 
-    cmp al, DIR_LEFT
+    cmp ax, DIR_LEFT
     je .move_left
 
-    ; AL must be DIR_RIGHT here
+    ; AX must be DIR_RIGHT here
     add word [pos_x], STEP
     jmp .movement_done
 
@@ -157,7 +193,6 @@ main_loop:
 
 .move_left:
     sub word [pos_x], STEP
-    jmp .movement_done
 
 .movement_done:
     ; Keep the square inside the screen
@@ -199,10 +234,22 @@ finish:
 ;
 ;   AH = 0x30 (unmapped)
 ;   AL = DIR_NONE
+;
+;   AH >= 0x80
+;   AL = DIR_NONE
 ; ============================================================================
 
 get_key_direction:
     push bx
+
+    ; ------------------------------------------------------------------------
+    ; Reject scan codes outside the lookup table.
+    ;
+    ; The table contains entries for scan codes 00h-7Fh.
+    ; ------------------------------------------------------------------------
+
+    cmp ah, 0x80
+    jae .none
 
     ; ------------------------------------------------------------------------
     ; Move scan code from AH to BL.
@@ -220,6 +267,13 @@ get_key_direction:
     ; ------------------------------------------------------------------------
 
     mov al, [key_direction_table + bx]
+    jmp .done
+
+.none:
+    ; Scan code is outside the lookup table
+    mov al, DIR_NONE
+
+.done:
     pop bx
     ret
 
@@ -485,9 +539,64 @@ clamp_position:
     ret
 
 ; ============================================================================
+; game_tick
+;
+; Check whether enough BIOS timer ticks have elapsed to update the game.
+;
+; The BIOS timer runs at approximately 18.2 ticks per second.
+;
+; Input:
+;   [last_tick] = BIOS timer tick of the previous game update
+;
+; Output:
+;   AL = 1 if a new game tick is ready
+;   AL = 0 otherwise
+;
+; Side effects:
+;   Updates [last_tick] when a new game tick is ready.
+; ============================================================================
+
+game_tick:
+    push bx
+    push dx
+    push es
+
+    ; Access BIOS Data Area
+    mov dx, 0x0040
+    mov es, dx
+
+    ; Read current BIOS timer tick
+    mov dx, [es:0x006C]
+
+    ; Calculate elapsed ticks
+    mov bx, dx
+    sub bx, [last_tick]
+
+    ; Check if enough ticks have elapsed
+    cmp bx, TICK_INTERVAL
+    jb .not_ready
+
+    ; Store current tick
+    mov [last_tick], dx
+
+    ; Game tick is ready
+    mov al, 1
+    jmp .done
+
+.not_ready:
+    xor al, al
+
+.done:
+    pop es
+    pop dx
+    pop bx
+    ret
+
+; ============================================================================
 ; Game state
 ; ============================================================================
 
-pos_x: dw 100                       ; box's top-left X position
+pos_x: dw 104                       ; box's top-left X position
 pos_y: dw 80                        ; box's top-left Y position
-
+direction: dw DIR_RIGHT
+last_tick: dw 0
