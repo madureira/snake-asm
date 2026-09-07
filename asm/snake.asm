@@ -28,8 +28,8 @@ VIDEO_SEGMENT   equ 0xA000          ; VGA framebuffer segment
 
 SCREEN_W        equ 320             ; screen width, in pixels
 SCREEN_H        equ 200             ; screen height, in pixels
-SQUARE_SIZE     equ 10              ; snake segment size, in pixels
-STEP            equ 8               ; movement step per keypress, in pixels
+SQUARE_SIZE     equ 8               ; snake segment size, in pixels
+STEP            equ SQUARE_SIZE     ; movement step per keypress, in pixels
 THICKNESS       equ 8               ; border wall thickness, in pixels
 
 ; ============================================================================
@@ -73,6 +73,10 @@ DIR_RIGHT       equ 4
 ; ============================================================================
 
 start:
+    ; Initialize data segment
+    push cs
+    pop ds
+
     ; Set VGA mode 13h: 320x200, 256 colors
     mov ax, VGA_MODE_13H
     int 0x10
@@ -85,15 +89,15 @@ start:
     mov bl, BORDER_COLOR
     call draw_border
 
+    ; Draw snake at initial position
+    mov bl, SNAKE_COLOR
+    call draw_box
+
 ; ============================================================================
 ; Main game loop
 ; ============================================================================
 
 main_loop:
-    ; Draw snake box at current position
-    mov bl, SNAKE_COLOR
-    call draw_box
-
     ; Wait for key input
     mov ah, 0x00                    ; BIOS keyboard: block until key pressed
     int 0x16                        ; AH=scan code, AL=ASCII (0 if extended)
@@ -118,19 +122,18 @@ main_loop:
     cmp al, DIR_NONE
     je main_loop
 
+    ; Ignore values outside the valid direction range
+    cmp al, DIR_UP
+    jb main_loop
 
-    ; ------------------------------------------------------------------------
-    ; A valid movement key was pressed
-    ; ------------------------------------------------------------------------
+    cmp al, DIR_RIGHT
+    ja main_loop
 
-    ; Erase the current square
+    ; Erase current square
     mov bl, BG_COLOR
     call draw_box
 
-    ; ------------------------------------------------------------------------
-    ; Check the requestd direction
-    ; ------------------------------------------------------------------------
-
+    ; Move according to the requested direction
     cmp al, DIR_UP
     je .move_up
 
@@ -140,8 +143,7 @@ main_loop:
     cmp al, DIR_LEFT
     je .move_left
 
-    ; If it is not UP, DOWN or LEFT,
-    ; it must be RIGHT
+    ; AL must be DIR_RIGHT here
     add word [pos_x], STEP
     jmp .movement_done
 
@@ -155,6 +157,7 @@ main_loop:
 
 .move_left:
     sub word [pos_x], STEP
+    jmp .movement_done
 
 .movement_done:
     ; Keep the square inside the screen
@@ -163,6 +166,7 @@ main_loop:
     ; Draw the square at the new position
     mov bl, SNAKE_COLOR
     call draw_box
+
     jmp main_loop
 
 finish:
@@ -291,48 +295,64 @@ key_direction_table:
 
 draw_box:
     push ax
+    push bx
     push cx
+    push dx
     push di
 
     ; ------------------------------------------------------------------------
     ; Calculate framebuffer offset:
     ;
     ; offset = pos_y * SCREEN_W + pos_x
+    ;
+    ; SCREEN_W = 320 = 256 + 64
+    ; Therefore:
+    ;
+    ; pos_y * 320 = pos_y * 256 + pos_y * 64
     ; ------------------------------------------------------------------------
 
     mov ax, [pos_y]
+    mov dx, ax
 
-    mov cx, SCREEN_W
-    mul cx                          ; ax = pos_y * SCREEN_W
+    shl ax, 8                       ; AX = pos_y * 256
+    shl dx, 6                       ; DX = pos_y * 64
 
-    add ax, [pos_x]                 ; ax = pos_y * SCREEN_W + pos_x
+    add ax, dx                      ; AX = pos_y * 320
+    add ax, [pos_x]                 ; AX = pos_y * 320 + pos_x
 
-    mov di, ax                      ; di = offset of the box's top-left pixel
+    mov di, ax
 
-    ; Draw rows
-    mov cx, SQUARE_SIZE             ; row counter
+    ; ------------------------------------------------------------------------
+    ; Prepare color for STOSB.
+    ;
+    ; STOSB writes AL to ES:[DI] and increments DI.
+    ; ------------------------------------------------------------------------
+
+    mov al, bl
+
+    ; ------------------------------------------------------------------------
+    ; Draw SQUARE_SIZE rows.
+    ; ------------------------------------------------------------------------
+
+    mov cx, SQUARE_SIZE
 
 .row:
     push cx
 
-    ; Draw columns
-    mov cx, SQUARE_SIZE             ; pixel counter for this row
-
-.col:
-    mov [es:di], bl                 ; write one pixel
-    inc di
-
-    loop .col
+    ; Draw one complete row
+    mov cx, SQUARE_SIZE
+    rep stosb
 
     ; Move DI to the beginning of the next row.
-    add di, SCREEN_W - SQUARE_SIZE  ; skip to the start of the next row
+    add di, SCREEN_W - SQUARE_SIZE
 
     pop cx
-
     loop .row
 
     pop di
+    pop dx
     pop cx
+    pop bx
     pop ax
     ret
 
@@ -354,59 +374,71 @@ draw_border:
     push cx
     push di
 
-    ; Top strip: SCREEN_W x THICKNESS, contiguous from offset 0
+    ; ------------------------------------------------------------------------
+    ; Prepare color for STOSB.
+    ;
+    ; STOSB writes AL to ES:[DI] and increments DI.
+    ; ------------------------------------------------------------------------
+
+    mov al, bl
+
+    ; ------------------------------------------------------------------------
+    ; Top strip: SCREEN_W x THICKNESS
+    ; ------------------------------------------------------------------------
+
     mov di, 0
     mov cx, SCREEN_W * THICKNESS
+    rep stosb
 
-.top:
-    mov [es:di], bl
-    inc di
-    loop .top
+    ; ------------------------------------------------------------------------
+    ; Bottom strip: SCREEN_W x THICKNESS
+    ; ------------------------------------------------------------------------
 
-    ; Bottom strip: SCREEN_W x THICKNESS, contiguos from the last THICKNESS rows
     mov ax, SCREEN_H - THICKNESS
     mov cx, SCREEN_W
-    mul cx                          ; ax = (SCREEN_H - THICKNESS) * SCREEN_W
+    mul cx                          ; AX = (SCREEN_H - THICKNESS) * SCREEN_W
 
     mov di, ax
+    mov al, bl
     mov cx, SCREEN_W * THICKNESS
+    rep stosb
 
-.bottom:
-    mov [es:di], bl
-    inc di
-    loop .bottom
-
+    ; ------------------------------------------------------------------------
     ; Left strip: THICKNESS x SCREEN_H
+    ; ------------------------------------------------------------------------
+
+    mov al, bl
     mov di, 0
-    mov cx, SCREEN_H                ; row counter
+    mov cx, SCREEN_H
 
 .left_row:
     push cx
-    mov cx, THICKNESS               ; pixel counter for this row
 
-.left_col:
-    mov [es:di], bl
-    inc di
-    loop .left_col
+    mov cx, THICKNESS
+    rep stosb
 
-    add di, SCREEN_W - THICKNESS    ; skip to the start of the next row
+    add di, SCREEN_W - THICKNESS
+
     pop cx
     loop .left_row
 
-    ; Right strip: THICKNESS x SCRREN_H
+
+    ; ------------------------------------------------------------------------
+    ; Right strip: THICKNESS x SCREEN_H
+    ; ------------------------------------------------------------------------
+
+    mov al, bl
     mov di, SCREEN_W - THICKNESS
-    mov cx, SCREEN_H                ; row counter
+    mov cx, SCREEN_H
 
 .right_row:
     push cx
-    mov cx, THICKNESS               ; pixel counter for this row
 
-.right_col:
-    mov [es:di], bl
-    inc di
-    loop .right_col
+    mov cx, THICKNESS
+    rep stosb
 
-    add di, SCREEN_W - THICKNESS    ; skip to the start of the next row
+    add di, SCREEN_W - THICKNESS
+
     pop cx
     loop .right_row
 
