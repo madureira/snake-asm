@@ -10,27 +10,32 @@
 bits 16                             ; real mode: 16-bit instructions
 org 0x100                           ; COM executable: PSP occupies the first 256 bytes
 
-SQUARE_SIZE     equ 10              ; snake segment size, in pixels
+; BIOS video (int 0x10)
+VGA_MODE_13H    equ 0x0013          ; 320x200, 256 colors
+VIDEO_SEGMENT   equ 0xA000          ; VGA framebuffer segment
+
+; Game constants
 SCREEN_W        equ 320             ; screen width, in pixels (VGA mode 13h)
 SCREEN_H        equ 200             ; screen height, in pixels (VGA mode 13h)
+SQUARE_SIZE     equ 10              ; snake segment size, in pixels
 STEP            equ 8               ; movement step per keypress, in pixels
 THICKNESS       equ 8               ; border wall thickness, in pixels
 
 ; VGA (default palette)
-BG_COLOR        equ 0               ; black (VGA defaul)
-BORDER_COLOR    equ 1               ; blue (VGA default palette)
-SNAKE_COLOR     equ 15              ; blue (VGA default palette)
+BG_COLOR        equ 0               ; black
+BORDER_COLOR    equ 1               ; blue
+SNAKE_COLOR     equ 15              ; white
 
 ; BIOS scan codes returned in AH by int 0x16, ah=0x00
-KEY_ESC     equ 0x01
-KEY_UP      equ 0x48
-KEY_DOWN    equ 0x50
-KEY_LEFT    equ 0x4B
-KEY_RIGHT   equ 0x4D
-
-; BIOS video (int 0x10)
-VGA_MODE_13H    equ 0x0013          ; 320x200, 256 colors
-VIDEO_SEGMENT   equ 0xA000          ; VGA framebuffer segment
+KEY_ESC         equ 0x01
+KEY_UP          equ 0x48
+KEY_DOWN        equ 0x50
+KEY_LEFT        equ 0x4B
+KEY_RIGHT       equ 0x4D
+KEY_W           equ 0x11
+KEY_S           equ 0x1F
+KEY_A           equ 0x1E
+KEY_D           equ 0x20
 
 start:
     ; Set VGA mode 13h: 320x200, 256 colors
@@ -57,26 +62,47 @@ main_loop:
     mov bl, BG_COLOR
     call draw_box                   ; erase old position
 
+    ; Capture keyboard input
     cmp ah, KEY_UP
-    jne .skip_up
-    sub word [pos_y], STEP          ; move up: decrease Y
+    je  .move_up
 
-.skip_up:
+    cmp ah, KEY_W
+    jne .skip_move_up
+
+.move_up:
+    sub word [pos_y], STEP          ; decrease Y
+
+.skip_move_up:
     cmp ah, KEY_DOWN
-    jne .skip_down
-    add word [pos_y], STEP          ; move down: increase Y
+    je .move_down
 
-.skip_down:
+    cmp ah, KEY_S
+    jne .skip_move_down
+
+.move_down:
+    add word [pos_y], STEP          ; increase Y
+
+.skip_move_down:
     cmp ah, KEY_LEFT
-    jne .skip_left
-    sub word [pos_x], STEP          ; move left: decrease X
+    je .move_left
 
-.skip_left:
+    cmp ah, KEY_A
+    jne .skip_move_left
+
+.move_left:
+    sub word [pos_x], STEP          ; decrease X
+
+.skip_move_left:
     cmp ah, KEY_RIGHT
-    jne .skip_right
-    add word [pos_x], STEP          ; move right: increase X
+    je .move_right
 
-.skip_right:
+    cmp ah, KEY_D
+    jne .skip_move_right
+
+.move_right:
+    add word [pos_x], STEP          ; increase X
+
+.skip_move_right:
     call clamp_position             ; keep the box within the screen
     jmp main_loop
 

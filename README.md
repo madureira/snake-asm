@@ -53,10 +53,13 @@ SNAKE
 
 ## 🎮 Controls
 
-| Key             | Action           |
-|-----------------|------------------|
-| `↑` `↓` `←` `→` | Move snake       |
-| `ESC`           | Quit back to DOS |
+| Key       | Action           |
+|-----------|------------------|
+| `↑` / `W` | Move snake up    |
+| `↓` / `S` | Move snake down  |
+| `←` / `A` | Move snake left  |
+| `→` / `D` | Move snake right |
+| `ESC`     | Quit back to DOS |
 
 ## 📁 Project Structure
 
