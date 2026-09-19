@@ -45,6 +45,7 @@ SQUARE_SIZE         equ 8           ; snake segment size, in pixels
 STEP                equ SQUARE_SIZE ; movement step per keypress, in pixels
 THICKNESS           equ 8           ; border wall thickness, in pixels
 GAME_TICK_MS        equ 165         ; ~165 ms per movement
+COLLISION_FLASH_MS  equ 500         ; ~5 ms
 
 ; ============================================================================
 ; VGA colors (default palette)
@@ -52,6 +53,7 @@ GAME_TICK_MS        equ 165         ; ~165 ms per movement
 
 BG_COLOR            equ 0           ; black
 BORDER_COLOR        equ 1           ; blue
+COLLISION_COLOR     equ 4           ; red
 SNAKE_COLOR         equ 15          ; white
 
 ; ============================================================================
@@ -204,7 +206,12 @@ main_loop:
 
 .movement_done:
     ; Keep the square inside the screen
-    call clamp_position
+
+    ; Check  collision with the horizontal borders
+    call check_collision_x
+
+    ; Check  collision with the vertical borders
+    call check_collision_y
 
     ; Draw the square at the new position
     mov bl, SNAKE_COLOR
@@ -223,6 +230,67 @@ finish:
     ; Exit to DOS
     mov ax, 0x4C00
     int 0x21
+
+; ============================================================================
+; reset_game
+;
+; Reset the game state and restart the game loop.
+;
+; Modifies:
+;   pos_x
+;   pos_y
+;   direction
+; ============================================================================
+
+reset_game:
+    ; Draw snake at initial position
+    mov word [pos_x], 104
+    mov word [pos_y], 80
+    mov word [direction], DIR_RIGHT
+    mov word [timer_ticks], 0
+
+    ret
+
+; ============================================================================
+; show_collision
+;
+; Flash the border by COLLISION_COLOR for COLLISION_FLASH_MS milliseconds.
+;
+; Modifies:
+;   AX
+;   DX
+; ============================================================================
+
+show_collision:
+    mov bl, COLLISION_COLOR
+    call draw_border
+
+    ; Save the current timer value
+    pushf
+    cli
+    mov ax, [timer_ticks]
+    popf
+
+    ; Calculate the target time
+    add ax, COLLISION_FLASH_MS
+    mov dx, ax
+
+.wait
+    ; Read timer_ticks atomically
+    pushf
+    cli
+    mov ax, [timer_ticks]
+    popf
+
+    ; Check if the target time has been reached
+    cmp ax, dx
+    jb .wait
+
+    ; Restore the normal border color
+    mov bl, BORDER_COLOR
+    call draw_border
+
+    ret
 
 ; ============================================================================
 ; get_key_direction
@@ -513,40 +581,49 @@ draw_border:
     ret
 
 ; ============================================================================
-; clamp_position
+; check_collision_x
 ;
-; Keeps pos_x and pos_y within the playable area.
+; Checks whether the snake has collided with the left or right border.
+;
+; If a collision occurs, the game reset
 ; ============================================================================
 
-clamp_position:
-    push ax
-    ; Clamp X to left border
-    cmp word [pos_x], THICKNESS
-    jge .x_not_neg
-    mov word [pos_x], THICKNESS     ; clamp to left edge (inside the border)
+check_collision_x:
+    cmp word [pos_x], THICKNESS     ; pos_x < 8
+    jb .collision
 
-.x_not_neg:
-    ; Clamp X to right border
     mov ax, SCREEN_W - SQUARE_SIZE - THICKNESS
-    cmp word [pos_x], ax
-    jle .x_not_over
-    mov word [pos_x], ax            ; clamp to right edge (inside the border)
+    cmp word [pos_x], ax            ; pos_x > 304
+    ja .collision
 
-.x_not_over:
-    ; Clamp Y to top border
-    cmp word [pos_y], THICKNESS
-    jge .y_not_neg
-    mov word [pos_y], THICKNESS     ; clamp to top edge (inside the border)
+    ret
 
-.y_not_neg:
-    ; Clamp Y to bottom border
+.collision:
+    call show_collision
+    call reset_game
+    ret
+
+; ============================================================================
+; check_collision_y
+;
+; Checks whether the snake has collided with the top or bottom border.
+;
+; If a collision occurs, the game reset.
+; ============================================================================
+
+check_collision_y:
+    cmp word [pos_y], THICKNESS     ; pos_y < 8
+    jb .collision
+
     mov ax, SCREEN_H - SQUARE_SIZE - THICKNESS
-    cmp word [pos_y], ax
-    jle .y_not_over
-    mov word [pos_y], ax            ; clamp to bottom edge (inside the border)
+    cmp word [pos_y], ax            ; pos_y > 304
+    ja .collision
 
-.y_not_over:
-    pop ax
+    ret
+
+.collision:
+    call show_collision
+    call reset_game
     ret
 
 ; ============================================================================
