@@ -68,7 +68,7 @@ PLAYFIELD_MAX_Y     equ SCREEN_H - THICKNESS - SQUARE_SIZE
 BG_COLOR            equ 0           ; black
 BORDER_COLOR        equ 1           ; blue
 COLLISION_COLOR     equ 4           ; red
-SNAKE_COLOR         equ 15          ; white
+SNAKE_COLOR         equ 10          ; light green
 FRUIT_COLOR         equ 12          ; light red
 
 ; ============================================================================
