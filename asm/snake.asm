@@ -41,11 +41,25 @@ PIT_DIVISOR         equ 1193        ; ~1000 Hz
 
 SCREEN_W            equ 320         ; screen width, in pixels
 SCREEN_H            equ 200         ; screen height, in pixels
+
+SCREEN_W_SHIFT_HIGH equ 8
+SCREEN_W_SHIFT_LOW  equ 6
+
 SQUARE_SIZE         equ 8           ; snake segment size, in pixels
 STEP                equ SQUARE_SIZE ; movement step per keypress, in pixels
 THICKNESS           equ 8           ; border wall thickness, in pixels
+
+FRUIT_GRID_X        equ 38
+FRUIT_GRID_Y        equ 23
+FRUIT_GRID_SHIFT    equ 3
+
 GAME_TICK_MS        equ 165         ; ~165 ms per movement
-COLLISION_FLASH_MS  equ 500         ; ~5 ms
+COLLISION_FLASH_MS  equ 500         ; ~500 ms
+
+PLAYFIELD_MIN_X     equ THICKNESS
+PLAYFIELD_MAX_X     equ SCREEN_W - THICKNESS - SQUARE_SIZE
+PLAYFIELD_MIN_Y     equ THICKNESS
+PLAYFIELD_MAX_Y     equ SCREEN_H - THICKNESS - SQUARE_SIZE
 
 ; ============================================================================
 ; VGA colors (default palette)
@@ -55,6 +69,7 @@ BG_COLOR            equ 0           ; black
 BORDER_COLOR        equ 1           ; blue
 COLLISION_COLOR     equ 4           ; red
 SNAKE_COLOR         equ 15          ; white
+FRUIT_COLOR         equ 12          ; light red
 
 ; ============================================================================
 ; Keyboard scan codes
@@ -101,6 +116,9 @@ start:
     mov ax, VIDEO_SEGMENT
     mov es, ax
 
+    ; Initiate random seed
+    call init_random
+
     ; Install high-resolution game timer
     call install_timer
 
@@ -111,6 +129,10 @@ start:
     ; Draw snake at initial position
     mov bl, SNAKE_COLOR
     call draw_box
+
+    ; Generate and draw the fruit
+    call spawn_fruit
+    call draw_fruit
 
     ; Start the first movement interval after initialization is complete
     pushf
@@ -243,11 +265,16 @@ finish:
 ; ============================================================================
 
 reset_game:
+    call erase_fruit
+
     ; Draw snake at initial position
     mov word [pos_x], 104
     mov word [pos_y], 80
     mov word [direction], DIR_RIGHT
     mov word [timer_ticks], 0
+
+    call spawn_fruit
+    call draw_fruit
 
     ret
 
@@ -275,7 +302,7 @@ show_collision:
     add ax, COLLISION_FLASH_MS
     mov dx, ax
 
-.wait
+.wait:
     ; Read timer_ticks atomically
     pushf
     cli
@@ -447,8 +474,8 @@ draw_box:
     mov ax, [pos_y]
     mov dx, ax
 
-    shl ax, 8                       ; AX = pos_y * 256
-    shl dx, 6                       ; DX = pos_y * 64
+    shl ax, SCREEN_W_SHIFT_HIGH       ; AX = pos_y * 256
+    shl dx, SCREEN_W_SHIFT_LOW        ; DX = pos_y * 64
 
     add ax, dx                      ; AX = pos_y * 320
     add ax, [pos_x]                 ; AX = pos_y * 320 + pos_x
@@ -616,7 +643,7 @@ check_collision_y:
     jb .collision
 
     mov ax, SCREEN_H - SQUARE_SIZE - THICKNESS
-    cmp word [pos_y], ax            ; pos_y > 304
+    cmp word [pos_y], ax            ; pos_y > 184
     ja .collision
 
     ret
@@ -624,6 +651,146 @@ check_collision_y:
 .collision:
     call show_collision
     call reset_game
+    ret
+
+; ============================================================================
+; spawn_fruit:
+; ============================================================================
+
+spawn_fruit:
+    ; Generate random X
+    call random16
+
+    xor dx, dx
+    mov bx, FRUIT_GRID_X
+    div bx
+
+    mov ax, dx
+    shl ax, FRUIT_GRID_SHIFT
+    add ax, PLAYFIELD_MIN_X
+    mov [fruit_x], ax
+
+    ; Generate random Y
+    call random16
+
+    xor dx, dx
+    mov bx, FRUIT_GRID_Y
+    div bx
+
+    mov ax, dx
+    shl ax, FRUIT_GRID_SHIFT
+    add ax, PLAYFIELD_MIN_Y
+    mov [fruit_y], ax
+
+    ; Check if fruit overlaps the snake
+    mov ax, [fruit_x]
+    cmp ax, [pos_x]
+    jne .position_valid
+
+    mov ax, [fruit_y]
+    cmp ax, [pos_y]
+    je spawn_fruit
+
+.position_valid:
+    ret
+
+; ============================================================================
+; draw_fruit:
+;
+; Draws a SQUARE_SIZE x SQUARE_SIZE fruit at (fruit_x, fruit_y).
+;
+; Uses:
+;   ES = VGA video segment
+; ============================================================================
+
+draw_fruit:
+    push ax
+    push bx
+    push cx
+    push dx
+    push di
+
+    ; Calculate framebuffer offset:
+    ; offset = fruit_y * SCREEN_W + fruit_x
+    mov ax, [fruit_y]
+    mov dx, ax
+
+    ; SCREEN_W = 320 = 256 + 64
+    shl ax, SCREEN_W_SHIFT_HIGH     ; AX = fruit_y * 256
+    shl dx, SCREEN_W_SHIFT_LOW      ; DX = fruit_y * 64
+
+    add ax, dx                      ; AX = fruit_y * 320
+    add ax, [fruit_x]               ; AX = fruit_y * 320 + fruit_x
+
+    mov di, ax
+
+    ; Prepare color for STOSB
+    mov al, FRUIT_COLOR
+
+    ; Draw SQUARE_SIZE rows
+    mov cx, SQUARE_SIZE
+
+.row:
+    push cx
+
+    ; Draw one comple row
+    mov cx, SQUARE_SIZE
+    rep stosb
+
+    ; Move DI to the beginning of the next row
+    add di, SCREEN_W - SQUARE_SIZE
+
+    pop cx
+    loop .row
+
+    pop di
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+
+    ret
+
+; ============================================================================
+; erase_fruit
+;
+; Erases the fruit by drawing its square using the background color.
+;
+; Uses:
+;   ES = VGA video segment
+; ============================================================================
+
+erase_fruit:
+    push ax
+    push bx
+    push cx
+    push dx
+    push di
+
+    mov ax, [fruit_y]
+    mov dx, ax
+    shl ax, SCREEN_W_SHIFT_HIGH
+    shl dx, SCREEN_W_SHIFT_LOW
+    add ax, dx
+    add ax, [fruit_x]
+    mov di, ax
+
+    mov al, BG_COLOR
+    mov cx, SQUARE_SIZE
+
+.row:
+    push cx
+    mov cx, SQUARE_SIZE
+    rep stosb
+    add di, SCREEN_W - SQUARE_SIZE
+    pop cx
+    loop .row
+
+    pop di
+    pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
 
 ; ============================================================================
@@ -688,6 +855,57 @@ game_tick:
     popf
 
     pop bx
+    ret
+
+; ============================================================================
+; random16
+;
+; LCG (Linear Congruential Generator)
+; ============================================================================
+
+random16:
+    mov ax, [random_seed]
+    mov dx, 25173
+    mul dx
+    add ax, 13849
+    mov [random_seed], ax
+    ret
+
+; ============================================================================
+; init_random
+;
+; Initializes the random number generator usng the current DOS time.
+;
+; DOS INT 21h / AH=2Ch returns:
+;   CH = hour
+;   CL = minute
+;   DH = second
+;   DL = hundredths of second
+;
+; Output:
+;   random_seed = 16-bit value rerived from the current time.
+; ============================================================================
+
+init_random:
+    mov ah, 0x2C
+    int 0x21
+
+    ; Combine hour and minute
+    mov al, ch
+    xor ah, cl
+
+    ; Mix seconds and hundredths
+    xor al, dh
+    xor ah, dl
+
+    ; Avoid a zero seed
+    cmp ax, 0
+    jne .store
+
+    mov ax, 0xACE1
+
+.store:
+    mov [random_seed], ax
     ret
 
 ; ============================================================================
@@ -974,6 +1192,9 @@ timer_irq0:
 pos_x:                      dw 104  ; box's top-left X position
 pos_y:                      dw 80   ; box's top-left Y position
 direction:                  dw DIR_RIGHT
+fruit_x:                    dw 0
+fruit_y:                    dw 0
+random_seed:                dw 0
 
 timer_ticks:                dw 0    ; High-resolution game timer
 
